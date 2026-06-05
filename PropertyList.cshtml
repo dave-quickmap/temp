@@ -1,0 +1,117 @@
+@model Boolean?
+
+@{
+    // Server-side claim checks rendered once at page-serve time.
+    // Column visibility is controlled by passing a Razor-built cols array
+    // to PropertyList() rather than by passing boolean feature flags.
+
+    string SHOW_OWNERS_SELECTABLE = (Model.HasValue && Model.Value ? "true" : "false");
+    int MAX_RESULTS = Configuration.GetSetting<int>("Reinz.MaximumResultsPerSearch");
+
+}
+
+<!-- begin PropertyList.cshtml -->
+<link rel="stylesheet" href="~/Content/PropertyList.css">
+<link href="~/content/fonts/tabler-icons/tabler-icons.min.css" rel="stylesheet" />
+
+<div class="pl-app" id="pl-propertylist" style="max-height: none; height: calc(100vh - 50px);" >
+
+    <div class="toolbar">
+        <span class="toolbar-title">
+            <i class="ti ti-building-estate" aria-hidden="true"></i>
+            List properties
+        </span>
+        <span class="footer-right" id="header-info"></span>
+
+        <button class="btn" id="col-toggle-btn">
+            <i class="ti ti-layout-columns" aria-hidden="true"></i>Columns
+        </button>
+        <button class="btn btn-orange" id="btn-export-csv">
+            <i class="ti ti-download" aria-hidden="true"></i>Download CSV
+        </button>
+        <a id="btn-export-csv-hidden-download" style="display:none;">Download</a>
+    </div>
+
+    <div class="body-row">
+
+        <div class="picker-panel hidden" id="picker-panel">
+            <div class="picker-header">
+                <i class="ti ti-layout-columns" aria-hidden="true"></i>
+                Toggle &amp; reorder
+            </div>
+            <div class="picker-actions">
+                <button class="link-btn" id="btn-select-all">All</button>
+                <span style="color:var(--color-text-tertiary)">&middot;</span>
+                <button class="link-btn" id="btn-select-none">None</button>
+                <span style="color:var(--color-text-tertiary)">&middot;</span>
+                <button class="link-btn" id="btn-reset">Reset</button>
+            </div>
+
+            <div class="picker-hint">
+                <i class="ti ti-grip-vertical" aria-hidden="true"></i>
+                Drag: reorder&nbsp;&middot;&nbsp;Check: show/hide
+            </div>
+            <div id="picker-body"></div>
+        </div>
+
+        <div class="table-wrap" id="table-wrap">
+            <table id="main-table">
+                <thead id="table-head"></thead>
+                <tbody id="table-body"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <div class="footer">
+
+        <span class="tip" id="persist-tip"><i class="ti ti-device-floppy" aria-hidden="true"></i>Layout saved</span>
+        <span class="save-dot" id="save-dot" title="Layout saved"></span>
+        <span class="footer-right" id="footer-info"></span>
+    </div>
+
+</div>
+
+<script src="~/Content/PropertyList.js"></script>
+<script>
+    // Column definitions for this view, mirroring the default COLS in PropertyList.js.
+    // Server-gated columns are included only when the user holds the required claim —
+    // add further 'if(' blocks here for any new claim-gated columns (e.g. AVM).;
+
+    var propertyListCols = [
+        { id: 'owners',         name: 'Owners', def: false, noexport: true, noselect: true},
+        { id: 'district',       name: 'District',           def: false   },
+        { id: 'suburb',         name: 'Suburb',             def: false   },
+        { id: 'cv',             name: 'Capital value',      def: true    },
+        { id: 'lv',             name: 'Land value',         def: false   },
+        { id: 'land',           name: 'Land area',          def: true    },
+        { id: 'floor',          name: 'Floor area',         def: true    },
+        { id: 'age',            name: 'Bldg age',           def: false   },
+        { id: 'beds',           name: 'Bedrooms',           def: true    },
+        { id: 'baths',          name: 'Bathrooms',          def: true    },
+        { id: 'cars',           name: 'Car spaces',         def: false   },
+        { id: 'roof',           name: 'Roof',               def: false   },
+        { id: 'walls',          name: 'Walls / ext.',       def: false   },
+        @if(User.HasAnyClaim(Claim.ReinzSales, Claim.HeadwaySales))
+        {
+            @:  { id: 'sprice', name: 'Last sale price',    def: true },
+            @:  { id: 'sdate',  name: 'Last sale date',     def: true },
+        }
+        { id: 'cat',            name: 'Category',           def: false  },
+        { id: 'use',            name: 'Land use',           def: false  },
+        { id: 'zone',           name: 'Zone',               def: false  },
+        { id: 'zoneDescription',name: 'Zone description',   def: false  }
+
+    ];
+
+    const _pl = PropertyList(window.top.prover, {
+        rootId:               'pl-propertylist',
+        storageKey:           'propertylist-layout-v1',
+        dataUrl:              '/property/PropertyListJson',
+        showOwnersSelectable: @SHOW_OWNERS_SELECTABLE,
+        cols:                 propertyListCols,
+        maxResults:           @MAX_RESULTS
+    });
+
+</script>
+<!-- end PropertyList.cshtml -->

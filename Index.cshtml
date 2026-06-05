@@ -1,0 +1,637 @@
+﻿@inherits ProverViewPage<object, ProspectingViewData>
+
+<!-- begin Streetreport.index.cshtml -->
+
+@{
+    Display.Title = "Street Report";
+    Display.IsApplicationPage = true;
+    Display.ShowSidebar = false;
+
+    int MAX_RESULTS = Configuration.GetSetting<int>("Reinz.MaximumResultsPerSearch");
+
+    bool SHOW_AVM = (User.HasClaim(Claim.ReinzSales) && ViewData.DisplayAvm);
+
+
+}
+
+@if(ViewData.HasUserExceededMonthlyLimit)
+{
+    <h1>Limit Exceeded</h1>
+    <p>
+        You have exceeded your monthly allowance of @ViewData.MaximumSearchesPerMonth prospecting searches.
+    </p>
+}
+else
+{
+    <style>
+
+            @@media print {
+
+                .noprint {
+                    display: none;
+                }
+            }
+            /* note that .noselect just stops the text highlighting. It doesnt prevent copying */
+            .noselect {
+                -webkit-touch-callout: none; /* iOS Safari */
+                -webkit-user-select: none; /* Chrome/Safari/Opera */
+                -khtml-user-select: none; /* Konqueror */
+                -khtml-user-drag: none;
+                -o-user-select: none; /* Opera*/
+                -moz-user-select: none; /* Firefox */
+                -ms-user-select: none; /* Internet Explorer/Edge */
+                user-select: none; /* Non-prefixed version, currently not supported by any browser */
+            }
+            /* Stops a simple highlight and copy of user names. put the display text into a data tag and then tell css to display it as content. */
+            [data-pseudo-content]::before {
+                content: attr(data-pseudo-content);
+            }
+    </style>
+
+
+    <div class="container-fluid">
+
+        <div class="tab_container">
+            <h3>Search Area</h3>
+            <div class="display-box">
+                <div class="row filters">
+                    <div class="col-md-9">
+
+                        <div class="col-xs-4">
+                            <label class="form-label col-fixed-smaller">Region</label>
+                            <select class="form-control control-fixed-xxlarge" id="regions"></select>
+                        </div>
+
+                        <div class="col-xs-4">
+                            <label class="form-label col-fixed-smaller">District</label>
+                            <select class="form-control control-fixed-xxlarge" id="districts"></select>
+                        </div>
+
+                        <div class="col-xs-4">                          
+                            <label class="form-label col-fixed-smaller">Suburb</label>
+                            <select class="form-control control-fixed-xxlarge" id="suburbs"></select>
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-3">
+
+                    </div>
+                </div>
+
+
+
+                <div style="font-size:7px">&nbsp;</div>
+                <div>
+                    <div class="col-12">
+                        <div class="row">
+                            <div class="collapsible">
+                                <input id="StreetReport-streetnames-collapsible" type="checkbox" class="collapsible-toggle" checked="checked">
+                                <div class="collapsible-header">
+                                    <label for="StreetReport-streetnames-collapsible" class="collapsible-label"><span class="expander"></span>Street Names</label>
+                                </div>
+
+                                <div class="collapsible-content frame" id="StreetReportPropertyAttributesFilter" name="StreetReportPropertyAttributesFilter">
+
+
+                                    <div id="streets" style="margin-top: 10px; margin-bottom: 10px;">
+                                        <div style="margin-bottom: 5px;">
+                                            <a href="#" id="select-all-streets">select all</a> -
+                                            <a href="#" id="deselect-all-streets">deselect all</a> -
+                                            <span class="street-count">0</span> street<span class="street-count-plural">s</span>
+                                            selected.
+                                        </div>
+                                        <div style="max-height: 175px; overflow: auto;">
+                                            <div id="streetstable" class="row">
+
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="propertyfilters">
+                    <div style="font-size:7px">&nbsp;</div>
+                    <div>
+                        <div class="col-12">
+                            <div class="row">
+                                @{ Html.RenderPartial("~/Views/Property/Components/AttributesFilterPartial.cshtml", (object)"StreetReport"); }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="font-size:7px">&nbsp;</div>
+                    <div>
+                        <div class="col-12">
+                            <div class="row">
+                                @{ Html.RenderPartial("~/Views/Property/Components/CategoryFilterPartial.cshtml", (object)"StreetReport"); }
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size:7px">&nbsp;</div>
+                    <div>
+                        <div class="col-12">
+                            <div class="row">
+                                @{ Html.RenderPartial("~/Views/Property/Components/TitleFilterPartial.cshtml", (object)"StreetReport"); }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="table-box">
+
+                <div style="overflow-x: auto; position:relative">
+
+
+                    <link rel="stylesheet" href="~/Content/PropertyList.css">
+                    <link href="~/content/fonts/tabler-icons/tabler-icons.min.css" rel="stylesheet" />
+
+                    <div class="pl-app" id="pl-propertylist">
+
+                        <div class="toolbar">
+
+                            <div class="toolbar-title">
+                                <i class="ti ti-building-estate" aria-hidden="true"></i>
+                                <div class="results-loaded">
+                                    <a id="find-properties" href="#" class="button">Find Properties</a>
+                                </div>
+                                <div class="results-loading" style="display: none;">
+                                    Loading <img src="/content/images/spinner2.gif">
+                                </div>
+
+                            </div>
+
+
+                            <span class="footer-right" id="header-info"></span>
+
+                            <button class="btn" id="col-toggle-btn">
+                                <i class="ti ti-layout-columns" aria-hidden="true"></i>Columns
+                            </button>
+                            <button class="btn btn-orange" id="btn-export-csv">
+                                <i class="ti ti-download" aria-hidden="true"></i>Download CSV
+                            </button>
+                            <a id="btn-export-csv-hidden-download" style="display:none;">Download</a>
+                        </div>
+
+                        <div class="body-row" style="postion">
+
+                            <div class="picker-panel hidden" id="picker-panel">
+                                <div class="picker-header">
+                                    <i class="ti ti-layout-columns" aria-hidden="true"></i>
+                                    Toggle &amp; reorder
+                                </div>
+                                <div class="picker-actions">
+                                    <button class="link-btn" id="btn-select-all">All</button>
+                                    <span style="color:var(--color-text-tertiary)">&middot;</span>
+                                    <button class="link-btn" id="btn-select-none">None</button>
+                                    <span style="color:var(--color-text-tertiary)">&middot;</span>
+                                    <button class="link-btn" id="btn-reset">Reset</button>
+                                </div>
+
+                                <div class="picker-hint">
+                                    <i class="ti ti-grip-vertical" aria-hidden="true"></i>
+                                    Drag: reorder&nbsp;&middot;&nbsp;Check: show/hide
+                                </div>
+                                <div id="picker-body"></div>
+                            </div>
+
+                            <div class="table-wrap" id="table-wrap">
+                                <table id="main-table">
+                                    <thead id="table-head"></thead>
+                                    <tbody id="table-body"></tbody>
+                                </table>
+                            </div>
+
+                        </div>
+
+                        <div class="footer">
+
+                            <span class="tip" id="persist-tip"><i class="ti ti-device-floppy" aria-hidden="true"></i>Layout saved</span>
+                            <span class="save-dot" id="save-dot" title="Layout saved"></span>
+                            <span class="footer-right" id="footer-info"></span>
+                        </div>
+
+                        @*
+        <div class="results-loading loading" style="display: none; position:absolute;left:0;right:0;top:30%">
+            <div class="loader big center" style="margin-top:20px;"></div>
+            <!--Loading <img src="/content/images/spinner2.gif">-->
+        </div>
+                        *@
+                    </div>
+
+                    <script src="~/Content/PropertyList.js"></script>
+
+
+                </div>
+
+
+            </div>
+        </div>
+
+    </div>
+}
+
+
+<script type="text/javascript">
+
+    let propertyfilters = document.getElementById('propertyfilters');
+    let $propertyfilters = $(propertyfilters);
+    // checkAll checkbox functionality in the filter panels (see CategoryFilterPartial.cshtml)
+    $propertyfilters.find(".CouncilCategoryGroup input[name='CheckAll']").on('click', function() {
+        var checked = $(this).prop('checked');
+        var grp = $(this).parents('.CouncilCategoryGroup');
+        grp.find("input[name='CouncilCategoryCheckBox']").prop('checked', checked);
+    });
+
+    // checkAll checkbox functionality in the filter panels (see CategoryFilterPartial.cshtml)
+    $propertyfilters.find(".TitleTypeFilter input[name='CheckAll']").on('click', function() {
+        var checked = $(this).prop('checked');
+        var grp = $(this).parents('.TitleTypeFilter');
+        grp.find("input[name='TitleTypeCheckBox']").prop('checked', checked);
+    });
+
+
+    let bv = document.getElementById('BareOrVacant');
+    $(bv).on('click', function() {
+        const categoriesBareOrVacant = ["RV", "RB", "LV", "LB", "CV", "IV", "OV"];
+        var checked = $(this).prop('checked');
+        if(checked) {
+            categoriesBareOrVacant.forEach(a => document.getElementById('CouncilCategory').querySelector(`input#${a}`).checked = true);
+            $('#CouncilCategory').hide(750);
+        }
+        else {
+            $('#CouncilCategory').show(
+                750,
+                () => {categoriesBareOrVacant.forEach(a => document.getElementById('CouncilCategory').querySelector(`input#${a}`).checked = false)}
+            );
+        }
+
+    })
+
+
+</script>
+
+
+
+<script type="text/javascript">
+
+    // 21/12/2021 Dave: specific to streetreport (no map on the page, always shown in a lightbox)
+    function showParcelDetailsView(itemId, itemName) {
+
+            window.prover.showIframe(
+                '/property/parcel_details?id=' + itemId,    //url
+                undefined,                                  //parameters
+                'Parcel Details for ' + itemName,           //title
+                '740px',                                    //width
+                '480px',                                    //height
+                undefined,                                  //successFn
+                3                                           //ToolBarOptions.print & NewPage
+            );
+        }
+
+    // 21/12/2021 Dave: specific to streetreport (no map on the page, always shown in a lightbox)
+    function showTitleDetailsView(title, currentParcel) {
+        window.prover.showTitleByName(title);
+    }
+
+
+
+
+
+
+
+    $(function () {
+
+        // Column definitions for the /streetreport/properties endpoint.
+        // Matches the columns in #results-table; absent fields (suburb, district,
+        // walls, beds, etc.) are simply omitted rather than shown as dashes.
+        // Server-gated columns (sales, AVM) are emitted only for users with the
+        // required claim — no boolean flags needed in PropertyList() config.
+        var streetReportCols = [
+            { id: 'owners',         name: 'Owners',              def: false, noexport: true, noselect: true },
+            { id: 'cv',             name: 'Capital value',       def: true },
+            { id: 'lv',             name: 'Land value',          def: true },
+            { id: 'age',            name: 'Building age',        def: true },
+            { id: 'land',           name: 'Land area',           def: true },
+            { id: 'floor',          name: 'Floor area',          def: true },
+
+
+            @if(User.HasAnyClaim(Claim.ReinzSales, Claim.HeadwaySales))
+            {
+                @:  { id: 'sdate',  name: 'Last sale date',     def: true },
+                @:  { id: 'sprice', name: 'Last sale price',    def: true },
+            }
+            @if(User.HasClaim(Claim.ReinzSales) && ViewData.DisplayAvm)
+            {
+                @:  { id: 'automatedValuationModelPrice',   name: 'AVM',    def: true },
+                @:  { id: 'automatedValuationModelQuality', name: 'Qual',   def: true},
+            }
+
+            { id: 'cat',            name: 'Category',           def: false},
+            { id: 'use',            name: 'Land use',           def: false},
+            { id: 'zone',           name: 'Zone',               def: false},
+            { id: 'zoneDescription',name: 'Zone description',   def: false},
+            { id: 'details',        name: 'Details',            def: true, noexport: true}
+        ];
+
+        var $region = $('#regions'),
+            _propertyList = null,   // holds the PropertyList instance after first search
+            $district = $('#districts'),
+            $suburb = $('#suburbs'),
+            $findProperties = $('#find-properties'),
+            $results = $('#results-table tbody'),
+            $resultsLoading = $('.results-loading'),
+            $resultsLoaded = $('.results-loaded'),
+            $hasResults = $('.has-results'),
+            $streets = $('#streets'),
+            $streetsTable = $streets.find('#streetstable'),
+            $saleFilter = $('#sale-filter'),
+            $downloadCsv = $('#download-csv'),
+            $resultCount = $('.result-count'),
+            $totalCount = $('.total-count'),
+            $resultPlural = $('.result-plural'),
+            $streetCount = $('.street-count'),
+            $streetCountPlural = $('.street-count-plural'),
+            clearStreets = function () {
+                $streets.hide();
+                $streetsTable.empty();
+                $resultsLoaded.hide();
+            },
+            clearSuburbs = function () {
+                $suburb.empty();
+                clearStreets();
+            },
+            clearDistricts = function () {
+                $district.empty();
+                clearSuburbs();
+            },
+            updateStreetCount = function () {
+                var count = $streetsTable.find('input:checked').length;
+
+                $streetCount.text(count);
+                $streetCountPlural.text(count === 1 ? '' : 's');
+            },
+            lastSearch;
+
+        clearDistricts();
+        $.get('/streetreport/regions', function (json) {
+            $region.append('<option>(select a region)</option>');
+            json.forEach(function (v) {
+                $region.append(
+                    '<option value="' +
+                        v.id + '">' +
+                        v.name +
+                        '</option>'
+                );
+            });
+        });
+
+        $saleFilter.on("change", function () {
+            var val = $saleFilter.val();
+
+            switch (val) {
+                case 'Sold':
+                    $('.has-sale-filter, .has-sold-filter, .has-sale-filter :input,.has-sold-filter :input').prop("disabled", false); //using :input to get <select>s is jQuery specific
+                    break;
+
+                case 'NotSold':
+                    $('.has-sale-filter, .has-sale-filter :input').prop("disabled", false);
+                    $('.has-sold-filter, .has-sold-filter :input').prop("disabled", true);
+                    break;
+
+                case 'NoFilter':
+                    $('.has-sale-filter,.has-sold-filter, .has-sale-filter :input,.has-sold-filter :input').prop("disabled", true);
+                    break;
+            }
+        });
+        $saleFilter.change();
+
+        $findProperties.on("click", function (e) {
+            var suburbId = $suburb.val();
+
+            e.preventDefault();
+
+            if(suburbId) {
+                $resultsLoaded.hide();
+                $resultsLoading.show();
+
+                let catChks = document.getElementById('CouncilCategory').querySelectorAll('input[name=CouncilCategoryCheckBox]:checked');
+                let cats = Array.from(catChks).map(a => a.id);
+                let titChks = document.getElementsByClassName('TitleTypeFilter')[0].querySelectorAll('input[name=TitleTypeCheckBox]:checked');
+                let tits = Array.from(titChks).map(a => a.id);
+                lastSearch = {
+                    suburbId: suburbId,
+                    streetFilter: $streets
+                        .find('input:checked')
+                        .toArray()
+                        .map(function(v) {return v.value;}),
+                    capitalValueFrom: $('[name=CapitalValueStart]').val(),
+                    capitalValueTo: $('[name=CapitalValueEnd]').val(),
+                    landValueFrom: $('[name=LandValueStart]').val(),
+                    landValueTo: $('[name=LandValueEnd]').val(),
+                    landAreaFrom: $('[name=LandAreaStart]').val(),
+                    landAreaTo: $('[name=LandAreaEnd]').val(),
+                    floorAreaFrom: $('[name=FloorAreaStart]').val(),
+                    floorAreaTo: $('[name=FloorAreaEnd]').val(),
+                    saleFilter: $saleFilter.val(),
+                    saleLength: $('#sale-length').val(),
+                    salePriceFrom: $('[name=SalePriceStart]').val(),
+                    salePriceTo: $('[name=SalePriceEnd]').val(),
+                    buildingAge: $('#BuildingAge').val(),
+                    bedroomsFrom: $('[name=BedroomsStart]').val(),
+                    bedroomsTo: $('[name=BedroomsEnd]').val(),
+                    bathroomsFrom: $('[name=BathroomsStart]').val(),
+                    bathroomsTo: $('[name=BathroomsEnd]').val(),
+                    categories: cats,
+                    titleTypes: tits
+                };
+
+                $downloadCsv.attr(
+                    'href',
+                    '/streetreport/properties_csv?' +
+                    $.param(lastSearch).replace(/%5B%5D/g, '')
+                );
+
+
+                // First search: create the component (loads layout, then data).
+                // Subsequent searches: just reload with the new filter values —
+                // layout, column order and sort state are preserved.
+                if(!_propertyList) {
+                    _propertyList = PropertyList(window.top.prover, {
+                        rootId: 'pl-propertylist',
+                        storageKey: 'propertylist-layout-v1',
+                        dataUrl: '/streetreport/properties',
+                        dataValue: lastSearch,
+                        cols: streetReportCols,
+                        showOwnersSelectable: true,
+                        maxResults:           @MAX_RESULTS
+                        });
+
+                    let propertyListelement = document.getElementById('pl-propertylist');
+
+                    $(propertyListelement).on("click", function(e) {
+                        var $target = $(e.target);
+
+                        if($target.hasClass('details')) {
+                            e.preventDefault();
+
+                            prover.showIframe(
+                                '/property/item_detail',
+                                {
+                                    Type: 'valuation',
+                                    Name: $target.data('valref')
+                                },
+                                '',
+                                '730px',
+                                '800px',
+                                undefined,
+                                1
+                            );
+                        }
+                    });
+
+                    propertyListelement.addEventListener('plRenderComplete', (event) => {
+                        console.log(`PropertyList Rendered ${event.detail.rowCount} rows. Visible columns are: ${event.detail.visibleColumns}`);
+                        $resultsLoaded.show();
+                        $resultsLoading.hide();
+
+                        // You can safely execute DOM manipulations or 3rd-party initializations here
+                    });
+
+
+                }
+                else {
+                    _propertyList.reload(lastSearch);
+                }
+
+            }
+        });
+
+
+        $region.on("change", function () {
+            var regionId = $region.val();
+
+            clearDistricts();
+
+            if (regionId) {
+                $.post(
+                    '/streetreport/tlas',
+                    { regionId: regionId },
+                    function (json) {
+                        $district.append('<option>(select a district)</option>');
+                        json.forEach(function (v) {
+                            $district.append(
+                                '<option value="' + v.id +
+                                '">' + v.friendlyName + '</option>'
+                            );
+                        });
+                    }
+                );
+            }
+        });
+
+        $district.on("change", function () {
+            var tlaId = $district.val();
+
+            clearSuburbs();
+
+            if (tlaId) {
+                $.get(
+                    '/streetreport/suburbs',
+                    { tlaId: tlaId },
+                    function (json) {
+                        $suburb.append('<option>(select a suburb)</option>');
+                        json.forEach(function (v) {
+                            $suburb.append(
+                                '<option value="' + v.id +
+                                '">' + v.name + '</option>'
+                            );
+                        });
+                    }
+                );
+            }
+        });
+
+        $suburb.on("change", function () {
+            var suburbId = $suburb.val();
+
+            clearStreets();
+            updateStreetCount();
+
+            if (suburbId) {
+                $.get(
+                    '/streetreport/streets',
+                    { suburbId: suburbId },
+                    function (json) {
+                        var html = '',
+                            i;
+
+                        for (i = 0; i < json.length; i++) {
+                            html += '<div class="col-xl-2 col-sm-3 col-xs-4 col-6">' +
+                                '<label class="form-control wide">' +
+                                '<input type="checkbox" value="' + json[i].id + '" />' +
+                                json[i].name +
+                                '</label></div>';
+                        }
+
+                        $streetsTable.html(html);
+                        prover.hookup($streets);
+                        $streets.show();
+                        $resultsLoaded.show();
+                    }
+                );
+            }
+        });
+
+        $('#select-all-streets').on("click", function (e) {
+            e.preventDefault();
+
+            $streetsTable.find('input').prop('checked', true).change();
+        });
+
+        $('#deselect-all-streets').on("click", function (e) {
+            e.preventDefault();
+
+            $streetsTable.find('input').prop('checked', false).change();
+        });
+
+        $streetsTable.on('click', 'label', updateStreetCount);
+        $streetsTable.on('change', 'input', updateStreetCount);
+
+
+
+
+
+
+
+
+            @if(!ViewData.DisplayOwners)
+            {
+
+            @: document.body.oncopy = function () {
+            @:  var isFirefox = navigator.userAgent.indexOf('Firefox') > -1;
+            @:  var isChrome = navigator.userAgent.indexOf('Chrome') > -1;
+            @:  var isEdge = navigator.userAgent.indexOf('Edge') > -1;
+            @:  var isDocumentMode = !!document.documentMode;
+            @:  var isMSInputMethodContext = !!window.MSInputMethodContext;
+
+           /* tests, in order. Return true if its chrome of firefox */
+            @:  if (isMSInputMethodContext || isDocumentMode || isEdge) return false;   // probably edge or IE
+            @:  if (isFirefox && isChrome) return false;                                // unknown combination
+            @:  if (isFirefox || isChrome) return true;                                 // FF or Chrome
+            @:  return false;                                                           // safari or unknown
+            @:};
+
+            }
+
+
+    });
+</script>
+<!-- end Streetreport.index.cshtml -->
